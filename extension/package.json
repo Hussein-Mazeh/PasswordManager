@@ -1,0 +1,21 @@
+{
+  "name": "extension",
+  "version": "1.0.0",
+  "description": "PassMan is a Manifest V3 browser extension that talks to a native Go helper via Chrome/Firefox Native Messaging. This MVP keeps the surface minimal and prepares for deeper integration with the existing Go CLI.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "watch": "tsc --watch --preserveWatchOutput"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "tldts": "^7.0.17"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.27",
+    "typescript": "^5.9.3"
+  }
+}

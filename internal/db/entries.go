@@ -39,6 +39,23 @@ func InsertEntry(d *DB, website, username, typ string, salt, enc []byte) (int64,
 	return id, nil
 }
 
+// UpdateEntryCipher rotates the salt, encrypted blob, and optional type for an existing credential.
+func UpdateEntryCipher(d *DB, id int64, typ string, salt, enc []byte) error {
+	if d == nil || d.sql == nil {
+		return fmt.Errorf("database handle is nil")
+	}
+
+	_, err := d.sql.Exec(
+		`UPDATE passwords SET encrypted_pass = ?, salt = ?, type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		enc, salt, typ, id,
+	)
+	if err != nil {
+		return fmt.Errorf("update entry cipher: %w", err)
+	}
+
+	return nil
+}
+
 // GetEntryByWebsite returns all entries for a given website.
 func GetEntryByWebsite(d *DB, website string) ([]EntryRow, error) {
 	if d == nil || d.sql == nil {
@@ -111,4 +128,28 @@ func GetEntryBySiteAndUser(d *DB, website, username string) (*EntryRow, error) {
 	}
 
 	return &r, nil
+}
+
+// DeleteEntryBySiteAndUser deletes a credential matching website and username.
+// It returns sql.ErrNoRows if nothing was deleted.
+func DeleteEntryBySiteAndUser(d *DB, website, username string) error {
+	if d == nil || d.sql == nil {
+		return fmt.Errorf("database handle is nil")
+	}
+
+	res, err := d.sql.Exec(
+		`DELETE FROM passwords WHERE website = ? AND username = ?`,
+		website, username,
+	)
+	if err != nil {
+		return fmt.Errorf("delete entry: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete rows affected: %w", err)
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }

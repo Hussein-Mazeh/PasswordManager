@@ -1,0 +1,38 @@
+linters:
+  enable-all: true
+  disable:
+    # This library uses globals, not sure how to refactor them away.
+    - gochecknoglobals
+    # This library uses an init function, not sure how to refactor this away.
+    - gochecknoinits
+    # goconst complains about common strings.
+    - goconst
+    # gofmt is not needed because we are running goimports (which is a superset of gofmt)
+    - gofmt
+    # goerr113 complains about creating new static errors.
+    - goerr113
+    # funlen complains about long functions.
+    - funlen
+    # Long lines are handled manually.
+    - lll
+    # WSL requires excessive newlines around if statements
+    - wsl
+
+issues:
+  # We want to use golint but we don't care about some of the things that it complains about
+  exclude:
+    # We block-scope variables in many places, making it impossible to outdent
+    - "if block ends with a return statement, so drop this else and outdent its block"
+
+linters-settings:
+  govet:
+    # Checking for shadowed variables is experimental and disabled by default.
+    check-shadowing: true
+
+  lll:
+    line-length: 100
+    tab-width: 4
+
+  whitespace:
+    # Enforce newlines (or comments) after every multi-line if statement.
+    multi-if: true

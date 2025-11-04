@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Go build artifacts
+/native-host/passman-host
+/main
+/pm
+.gocache/
+.gomodcache/
+bin/
+
+# Go vendor directories produced by go mod vendor
+native-host/vendor/
+vendor/
+
+# Node/TypeScript artifacts
+node_modules/
+extension/node_modules/
+extension/*.tsbuildinfo
+extension/dist/
+extension/build/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+coverage/
+
+# IDE project files
+.idea/
+.vscode/

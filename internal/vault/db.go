@@ -9,6 +9,7 @@ import (
 
 	_ "modernc.org/sqlite" // SQLite driver
 )
+//This file is about vault provisioning  
 
 // Config describes how the vault database should be opened.
 type Config struct {

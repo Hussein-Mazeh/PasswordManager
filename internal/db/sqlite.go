@@ -53,7 +53,8 @@ func Close(d *DB) error {
 	return d.sql.Close()
 }
 
-// EnsurePerm0600 attempts to set the database file permissions to 0600 on Unix systems.
+// EnsurePerm0600 attempts to set the database file permissions to 0600 on Unix systems(the owner permission).
+// Only the current owner of the sqlite db is allowed to read and write (ensured if Unix system)
 func EnsurePerm0600(path string) error {
 	if runtime.GOOS == "windows" {
 		return nil
@@ -62,7 +63,7 @@ func EnsurePerm0600(path string) error {
 		return fmt.Errorf("chmod database: %w", err)
 	}
 	return nil
-}
+} //Must find a new way to ensure secure database on windows too.
 
 const createPasswordsTable = `
 CREATE TABLE IF NOT EXISTS passwords (
@@ -73,10 +74,11 @@ CREATE TABLE IF NOT EXISTS passwords (
 	username       TEXT    NOT NULL,
 	type           TEXT    NOT NULL DEFAULT 'password',
 	created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE(website, username)
 );
 
-CREATE INDEX IF NOT EXISTS idx_passwords_site_user ON passwords(website, username);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_passwords_site_user ON passwords(website, username);
 `
 
 // Migrate ensures the passwords table (and index) exist.

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'"
+    />
+    <title>PassMan</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <h1>PassMan</h1>
+      <p id="status">MVP – Native Messaging connected: (unknown)</p>
+      <div class="actions">
+        <button id="unlock">Unlock</button>
+        <button id="lock">Lock</button>
+        <button id="save">Save Current Creds</button>
+      </div>
+    </main>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

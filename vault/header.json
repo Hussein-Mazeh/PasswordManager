@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "user": "hussein@gmail.com",
+  "createdAt": "2025-11-04T08:02:48.17642Z",
+  "updatedAt": "2025-11-04T08:02:48.176426Z",
+  "salt": "0B9B/ruQFcCIFXun",
+  "wrapNonce": "5T7hEM8cFXZ8+Cbr",
+  "wrappedMEK": "CjW3q5aU1s2Nw92fIPKi9WW98/9y2Tegoo2ui02eH1eZIwxWCigr314X/QYJF/tb",
+  "kdf": {
+    "name": "argon2id",
+    "memoryMB": 64,
+    "time": 3,
+    "parallelism": 1,
+    "saltLen": 12,
+    "keyLen": 32
+  }
+}

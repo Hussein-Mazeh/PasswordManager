@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
@@ -19,6 +20,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/Hussein-Mazeh/PasswordManager/auth"
+	"github.com/Hussein-Mazeh/PasswordManager/internal/bio/toggle"
 	dbpkg "github.com/Hussein-Mazeh/PasswordManager/internal/db"
 	"github.com/Hussein-Mazeh/PasswordManager/internal/vault"
 	"github.com/Hussein-Mazeh/PasswordManager/krypto"
@@ -62,6 +64,10 @@ func main() {
 		}
 	case "session":
 		if err := runSession(os.Args[2:]); err != nil {
+			handleError(err)
+		}
+	case "bio":
+		if err := runBio(os.Args[2:]); err != nil {
 			handleError(err)
 		}
 	default:
@@ -120,8 +126,13 @@ func runMasterSet(args []string) error {
 		return userError{msg: "passwords do not match"}
 	}
 
-	if err := auth.ValidateMasterPassword(string(pw)); err != nil {
-		return userError{msg: "password does not meet policy requirements"}
+	ctx := context.Background()
+	opts := auth.DefaultValidateOptions()
+	opts.EnableHIBP = true
+	opts.MinZXCVBNScore = 3
+
+	if err := auth.ValidateMasterPasswordAdvanced(ctx, string(pw), opts); err != nil {
+		return userError{msg: err.Error()}
 	}
 
 	paths := store.Paths{Dir: dir}
@@ -262,6 +273,20 @@ func runSession(args []string) error {
 		KeyLen:      hdr.KDF.KeyLen,
 	}
 
+	bioStatus, err := toggle.Status(dir)
+	if err != nil && !errors.Is(err, toggle.ErrUnsupported) {
+		return fmt.Errorf("biometric status: %w", err)
+	}
+	if err == nil && bioStatus.Enabled {
+		if err := toggle.Authenticate("Touch ID to unlock the vault"); err != nil {
+			if errors.Is(err, toggle.ErrUnsupported) {
+				// ignore; treat as disabled if unsupported at runtime
+			} else {
+				return userError{msg: "biometric authentication failed"}
+			}
+		}
+	}
+
 	pw, err := promptPassword("Enter master password: ")
 	if err != nil {
 		return fmt.Errorf("read master password: %w", err)
@@ -329,6 +354,14 @@ func sessionLoop(database *dbpkg.DB, mek []byte) error {
 			}
 		case "get":
 			if err := sessionGet(database, mek, args); err != nil {
+				handleSessionError(err)
+			}
+		case "update":
+			if err := sessionUpdate(database, mek, args); err != nil {
+				handleSessionError(err)
+			}
+		case "delete":
+			if err := sessionDelete(database, args); err != nil {
 				handleSessionError(err)
 			}
 		case "exit", "quit":
@@ -418,10 +451,13 @@ func sessionGet(database *dbpkg.DB, mek []byte, args []string) error {
 			}
 			return fmt.Errorf("fetch credential: %w", err)
 		}
-		plaintext, err := vault.DecryptEntryPassword(mek, row.Salt, row.EncryptedPass)
+		plaintext, newSalt, newBlob, err := vault.DecryptEntryPassword(mek, row.Website, row.Username, row.Type, row.Salt, row.EncryptedPass)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to decrypt credential for %s/%s\n", row.Website, row.Username)
 			return nil
+		}
+		if err := dbpkg.UpdateEntryCipher(database, row.ID, row.Type, newSalt, newBlob); err != nil {
+			return fmt.Errorf("refresh credential: %w", err)
 		}
 		fmt.Printf("%s %s: %s\n", row.Website, row.Username, plaintext)
 		return nil
@@ -436,13 +472,104 @@ func sessionGet(database *dbpkg.DB, mek []byte, args []string) error {
 		return nil
 	}
 	for _, row := range rows {
-		plaintext, err := vault.DecryptEntryPassword(mek, row.Salt, row.EncryptedPass)
+		plaintext, newSalt, newBlob, err := vault.DecryptEntryPassword(mek, row.Website, row.Username, row.Type, row.Salt, row.EncryptedPass)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to decrypt credential for %s/%s\n", row.Website, row.Username)
 			continue
 		}
+		if err := dbpkg.UpdateEntryCipher(database, row.ID, row.Type, newSalt, newBlob); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to refresh credential for %s/%s: %v\n", row.Website, row.Username, err)
+			continue
+		}
 		fmt.Printf("%s %s: %s\n", row.Website, row.Username, plaintext)
 	}
+	return nil
+}
+
+func sessionUpdate(database *dbpkg.DB, mek []byte, args []string) error {
+	fs := flag.NewFlagSet("update", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+
+	var site string
+	var user string
+	var typ string
+	fs.StringVar(&site, "site", "", "website identifier")
+	fs.StringVar(&user, "user", "", "username")
+	fs.StringVar(&typ, "type", "", "credential type")
+
+	if err := fs.Parse(args); err != nil {
+		return userError{msg: "invalid update arguments"}
+	}
+	if site == "" || user == "" {
+		return userError{msg: "update requires --site and --user"}
+	}
+	if fs.NArg() != 0 {
+		return userError{msg: "unexpected positional arguments"}
+	}
+
+	row, err := dbpkg.GetEntryBySiteAndUser(database, site, user)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return userError{msg: "credential not found"}
+		}
+		return fmt.Errorf("fetch credential: %w", err)
+	}
+
+	if typ == "" {
+		typ = row.Type
+	}
+
+	secret, err := promptPassword("New secret: ")
+	if err != nil {
+		return fmt.Errorf("read secret: %w", err)
+	}
+	defer zeroBytes(secret)
+
+	if len(secret) == 0 {
+		return userError{msg: "secret cannot be empty"}
+	}
+
+	entrySalt, blob, err := vault.EncryptEntryPassword(mek, site, user, typ, string(secret))
+	if err != nil {
+		return fmt.Errorf("encrypt credential: %w", err)
+	}
+
+	if err := dbpkg.UpdateEntryCipher(database, row.ID, typ, entrySalt, blob); err != nil {
+		return fmt.Errorf("update credential: %w", err)
+	}
+
+	fmt.Printf("updated credential for %s/%s\n", site, user)
+	return nil
+}
+
+func sessionDelete(database *dbpkg.DB, args []string) error {
+	fs := flag.NewFlagSet("delete", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+
+	var site string
+	var user string
+	fs.StringVar(&site, "site", "", "website identifier")
+	fs.StringVar(&user, "user", "", "username")
+
+	if err := fs.Parse(args); err != nil {
+		return userError{msg: "invalid delete arguments"}
+	}
+	if site == "" || user == "" {
+		return userError{msg: "delete requires --site and --user"}
+	}
+	if fs.NArg() != 0 {
+		return userError{msg: "unexpected positional arguments"}
+	}
+
+	if err := dbpkg.DeleteEntryBySiteAndUser(database, site, user); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			fmt.Fprintf(os.Stderr, "no credential found for %s/%s\n", site, user)
+			return nil
+		}
+		return fmt.Errorf("delete credential: %w", err)
+	}
+
+	fmt.Printf("deleted credential for %s/%s\n", site, user)
 	return nil
 }
 
@@ -493,6 +620,8 @@ func printSessionHelp() {
 	fmt.Println("Commands:")
 	fmt.Println("  add --site <website> --user <username> [--type password]")
 	fmt.Println("  get --site <website> [--user <username>]")
+	fmt.Println("  update --site <website> --user <username> [--type password]")
+	fmt.Println("  delete --site <website> --user <username>")
 	fmt.Println("  exit | quit")
 }
 
@@ -577,8 +706,13 @@ func runMasterChange(args []string) error {
 		return userError{msg: "passwords do not match"}
 	}
 
-	if err := auth.ValidateMasterPassword(string(newPw)); err != nil {
-		return userError{msg: "password does not meet policy requirements"}
+	ctx := context.Background()
+	opts := auth.DefaultValidateOptions()
+	opts.EnableHIBP = true
+	opts.MinZXCVBNScore = 3
+
+	if err := auth.ValidateMasterPasswordAdvanced(ctx, string(newPw), opts); err != nil {
+		return userError{msg: err.Error()}
 	}
 
 	newSalt, err := krypto.NewRandomSalt(params.SaltLen)
