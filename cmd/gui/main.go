@@ -69,14 +69,17 @@ var royalBlueLight = color.NRGBA{R: 224, G: 233, B: 255, A: 255} // soft tint
 var iconBytes []byte
 
 const autoLockAfter = 10 * time.Minute
+const clipboardClearAfter = 20 * time.Second
 const (
 	defaultBiometricRPID   = "localhost"
 	defaultBiometricOrigin = "https://localhost"
 )
 
 var (
-	autoLockMu    sync.Mutex
-	autoLockTimer *time.Timer
+	autoLockMu     sync.Mutex
+	autoLockTimer  *time.Timer
+	clipboardMu    sync.Mutex
+	clipboardTimer *time.Timer
 )
 
 type accentTheme struct{ fyne.Theme }
@@ -593,6 +596,7 @@ func main() {
 			copyBtn := makePrimary(widget.NewButton("Copy", withIdleReset(func() {
 				w.Clipboard().SetContent(p)
 				dialog.ShowInformation("Copied", "Password copied to clipboard", w)
+				scheduleClipboardClear(w)
 			})))
 
 			dialog.NewCustom(
@@ -799,6 +803,24 @@ func main() {
 }
 
 var table *widget.Table
+
+func scheduleClipboardClear(w fyne.Window) {
+	clipboardMu.Lock()
+	if clipboardTimer != nil {
+		clipboardTimer.Stop()
+	}
+	clipboardTimer = time.AfterFunc(clipboardClearAfter, func() {
+		fyne.Do(func() {
+			clipboardMu.Lock()
+			clipboardTimer = nil
+			clipboardMu.Unlock()
+			if clip := w.Clipboard(); clip != nil {
+				clip.SetContent("")
+			}
+		})
+	})
+	clipboardMu.Unlock()
+}
 
 func refreshList(t *widget.Table, svc *pmsvc.Service, w fyne.Window) {
 	items, err := svc.List()

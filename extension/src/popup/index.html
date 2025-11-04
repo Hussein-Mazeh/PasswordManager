@@ -6,17 +6,28 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'"
     />
-    <title>PassMan</title>
+    <title>Password Manager</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <main>
-      <h1>PassMan</h1>
-      <p id="status">MVP – Native Messaging connected: (unknown)</p>
+    <main class="card">
+      <header class="card__header">
+        <div class="badge">PM</div>
+        <div class="heading">
+          <h1>Password Manager</h1>
+          <p class="subtitle">Connected to your desktop vault</p>
+        </div>
+      </header>
+      <section class="status-block">
+        <span class="status-label">Native messaging</span>
+        <p id="status" class="status-text">
+          MVP – Native Messaging connected: (unknown)
+        </p>
+      </section>
       <div class="actions">
-        <button id="unlock">Unlock</button>
-        <button id="lock">Lock</button>
-        <button id="save">Save Current Creds</button>
+        <button id="unlock" class="btn btn--primary">Unlock</button>
+        <button id="lock" class="btn">Lock</button>
+        <button id="save" class="btn btn--ghost">Save Current Creds</button>
       </div>
     </main>
     <script src="popup.js" type="module"></script>

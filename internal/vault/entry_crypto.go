@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	entrySaltLen = 16
-	entryInfo    = "entry-key-v1"
+	entrySaltLen   = 16
+	entryInfo      = "entry-key-v1"
+	entryAADPrefix = "entry-aad-v1"
 )
 
 // EncryptEntryPassword encrypts a plaintext password using the MEK and entry context.
@@ -37,8 +38,6 @@ func EncryptEntryPassword(mek []byte, website, username, typ, plaintext string) 
 	if len(mek) != 32 {
 		return nil, nil, errors.New("invalid MEK length")
 	}
-	_ = website
-	_ = username
 	_ = typ
 
 	salt = make([]byte, entrySaltLen)
@@ -52,7 +51,9 @@ func EncryptEntryPassword(mek []byte, website, username, typ, plaintext string) 
 	}
 	defer zeroize(perKey)
 
-	nonce, ciphertext, err := krypto.EncryptAESGCM(perKey, []byte(plaintext), nil)
+	aad := entryAAD(website, username)
+
+	nonce, ciphertext, err := krypto.EncryptAESGCM(perKey, []byte(plaintext), aad)
 	if err != nil {
 		return nil, nil, fmt.Errorf("encrypt entry password: %w", err)
 	}
@@ -104,7 +105,9 @@ func DecryptEntryPassword(mek []byte, website, username, typ string, salt, blob 
 	nonce := blob[:12]
 	ciphertext := blob[12:]
 
-	ptBytes, err := krypto.DecryptAESGCM(perKey, nonce, ciphertext, nil)
+	aad := entryAAD(website, username)
+
+	ptBytes, err := krypto.DecryptAESGCM(perKey, nonce, ciphertext, aad)
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("decrypt entry password: %w", err)
 	}
@@ -124,4 +127,8 @@ func zeroize(buf []byte) {
 	for i := range buf {
 		buf[i] = 0
 	}
+}
+
+func entryAAD(website, username string) []byte {
+	return []byte(entryAADPrefix + "\x00" + website + "\x00" + username)
 }

@@ -1,4 +1,4 @@
-# PassMan Developer Guideline
+# PasswordManager Developer Guideline
 
 This walkthrough assumes a fresh clone of the repository at `~/PasswordManager`. Adapt the paths if you keep the project elsewhere.
 
@@ -19,21 +19,20 @@ cd ..
 ```
 
 ## 3. Vault Directory Layout
-- The default vault directory is the project-relative folder `vault/`.  
-- The native host expects a SQLite database named `vault.db` inside that folder (`vault/vault.db`).  
-- If you need seed data, copy one of the files from `vault-dev/` into `vault/` and rename it to `vault.db`, or run the CLI to initialise a new vault.
+- The repository ships with a `vault/` folder containing the SQLite database (`vault.db`). Please set the master password at first using either the gui or the cli. **(This is required also before using the extension)**.
+- The native host expects a SQLite database named `vault.db` inside that folder (`vault/vault.db`).
+- Decide where you want your vault to live (most developers keep it inside this repo). Note the absolute path; you must paste it into the extension defaults (next step) so the browser knows where to point.
 
 ## 4. Build the Go Binaries
 ```bash
 # Native messaging host (invoked by the browser)
-go build -o native-host/passman-host ./native-host
+cd native-host
+go build -o passman-host
 
 # Optional: CLI / GUI helpers
 go build -o bin/pm ./cmd/pm
 go build -o bin/passman-gui ./cmd/gui
 
-# Optional: run the Go test suite
-go test ./...
 ```
 
 Keep the `native-host/passman-host` path handy; the Chrome manifest must point to this absolute location.
@@ -49,7 +48,8 @@ cd ..
 Load the extension in Chrome:
 1. Visit `chrome://extensions`, enable **Developer mode**.
 2. Click **Load unpacked** and select the `extension/` directory (not `src/`).
-3. Note the generated extension ID; you will need it for the native host manifest.
+3. Note the generated extension ID; you will need it for the native host manifest. (the file is )
+4. Before loading in another profile, edit `src/config/defaults.ts` (and the compiled `defaults.js`) so `DEFAULT_VAULT_DIR` points to the full absolute path of your vault directory (e.g. `/Users/you/PasswordManager/vault`), then run `npm run build` to regenerate the JavaScript.
 
 ## 6. Native Messaging Host Registration (Chrome on macOS/Linux)
 1. Copy `native-host/com.crypto.passwordmanager.json` to your browser’s Native Messaging directory:
@@ -61,17 +61,14 @@ Load the extension in Chrome:
    - Replace the `allowed_origins` entry with your extension ID, e.g. `"chrome-extension://<your-extension-id>/"`.
 3. Repeat the same steps for other Chromium profiles (e.g. Brave) if needed. For Firefox, place the manifest in `~/Library/Application Support/Mozilla/NativeMessagingHosts/` (macOS) or `~/.mozilla/native-messaging-hosts/` (Linux) and adjust `allowed_extensions`.
 
-## 7. Extension Configuration
-- Open the extension’s Options page and confirm the **Vault directory** field shows `vault`. If you relocate the vault, update the absolute path here so the host can find `vault.db`.
-- The background service unlocks the vault when you submit your master password; it auto-locks on idle, browser suspend, or TTL expiry.
 
-## 8. Smoke Tests
+## 7. Smoke Tests
 ```bash
 # Check host health
 printf '\x07\x00\x00\x00{"type":"health"}' | native-host/passman-host | hexdump -C
 
 # Unlock against the default vault (replace password as needed)
-printf '\x1f\x00\x00\x00{"type":"unlock","dir":"vault","masterPassword":"example"}' | native-host/passman-host
+printf '\x1f\x00\x00\x00{"type":"unlock","dir":"/absolute/path/to/PasswordManager/vault","masterPassword":"example"}' | native-host/passman-host
 ```
 
 - From the extension popup, click **Unlock**, supply the master password for `vault/vault.db`, and visit a test site to confirm autofill.

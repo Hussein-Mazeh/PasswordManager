@@ -1,6 +1,6 @@
 # PassMan Browser Extension – Phase 1
 
-PassMan is a Manifest V3 browser extension that talks to a native Go helper via Chrome/Firefox Native Messaging. This MVP keeps the surface minimal and prepares for deeper integration with the existing Go CLI.
+PassMan is a Manifest V3 browser extension that talks to a native Go helper via Chrome Native Messaging. This MVP keeps the surface minimal and prepares for deeper integration with the existing Go CLI.
 
 ## Architecture
 
@@ -10,7 +10,6 @@ PassMan is a Manifest V3 browser extension that talks to a native Go helper via 
 - **Phishing heuristics** (`src/background/phishing.ts`) currently implements a lightweight eTLD+1 comparison. TODO: replace with a PSL-backed parser.
 - **Content script** (`src/content/autofill.ts`) requests credentials when it detects password fields. Filling is stubbed until Phase 2 wiring.
 - **Popup UI** (`src/popup`) shows lock state and provides manual lock/unlock controls.
-- **Options page** (`src/options`) stores configuration in `chrome.storage.sync` for future use.
 
 All HTML documents ship with strict Content Security Policy meta tags:
 

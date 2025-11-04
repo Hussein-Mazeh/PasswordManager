@@ -2,6 +2,29 @@
 
 This document summarizes every command exposed by the `pm` CLI (see `cmd/pm/main.go`). Use it as a checklist when manually testing the password manager.
 
+## Running from Source
+
+All examples assume you execute commands from the repository root.
+
+```sh
+# Option A: run directly with Go (recommended during development)
+go run ./cmd/pm version
+
+# Option B: build once, then invoke the binary
+go build -o pm ./cmd/pm
+./pm version
+```
+
+When using `go run`, always target the `./cmd/pm` package—running a single file such as `cmd/pm/main.go` will fail because helper files (e.g., `bio.go`) are excluded.
+
+Typical first-time workflow:
+
+```sh
+mkdir -p vault
+go run ./cmd/pm master set --dir vault --user alice@gmail.com
+go run ./cmd/pm session --dir vault
+```
+
 ## Global Usage
 
 ```sh
